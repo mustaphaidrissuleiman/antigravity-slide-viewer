@@ -170,8 +170,14 @@ function parseMarkdownToHtml(markdown) {
     s = s.replace(/\*(.*?)\*/g, '<em>$1</em>');
     // Inline code
     s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
-    // Links
-    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // Links (strictly enforce safe protocols)
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, linkText, linkUrl) => {
+      const cleanUrl = linkUrl.trim();
+      if (/^(https?:|file:|sidecar:|\/|#)/i.test(cleanUrl) && !/^(javascript|data|vbscript):/i.test(cleanUrl)) {
+        return `<a href="${cleanUrl}" target="_blank" rel="noopener">${linkText}</a>`;
+      }
+      return linkText;
+    });
     return s;
   }
 

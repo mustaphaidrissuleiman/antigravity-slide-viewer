@@ -111,15 +111,15 @@ function resolveSlidePath(inputPath, workspaceUris = []) {
     cleaned = join(homedir(), cleaned.slice(2));
   }
 
-  // 1. Direct path
-  if (existsSync(cleaned) && statSync(cleaned).isFile()) {
+  // 1. Direct path (must be a presentation file)
+  if (existsSync(cleaned) && statSync(cleaned).isFile() && isPresentationFile(cleaned)) {
     return cleaned;
   }
 
   // 2. URL-decoded path
   try {
     const decoded = decodeURIComponent(cleaned);
-    if (existsSync(decoded) && statSync(decoded).isFile()) {
+    if (existsSync(decoded) && statSync(decoded).isFile() && isPresentationFile(decoded)) {
       return decoded;
     }
   } catch {}
@@ -147,11 +147,11 @@ function resolveSlidePath(inputPath, workspaceUris = []) {
     if (!existsSync(base)) continue;
     try {
       const candidate = join(base, cleaned);
-      if (existsSync(candidate) && statSync(candidate).isFile()) {
+      if (existsSync(candidate) && statSync(candidate).isFile() && isPresentationFile(candidate)) {
         return candidate;
       }
       const decodedCandidate = join(base, decodeURIComponent(cleaned));
-      if (existsSync(decodedCandidate) && statSync(decodedCandidate).isFile()) {
+      if (existsSync(decodedCandidate) && statSync(decodedCandidate).isFile() && isPresentationFile(decodedCandidate)) {
         return decodedCandidate;
       }
     } catch {}
@@ -277,8 +277,8 @@ app.api('/api/workspace-slides', handleWorkspaceSlides, 'GET');
 
 app.api('/api/raw-slide', (data) => {
   const resolved = resolveSlidePath(data?.path, data?.workspaceUris);
-  if (!resolved) {
-    return new Response(JSON.stringify({ error: `File not found: ${data?.path || ''}` }), {
+  if (!resolved || !isPresentationFile(resolved)) {
+    return new Response(JSON.stringify({ error: `File not found or not a presentation: ${data?.path || ''}` }), {
       contentType: 'application/json',
       status: 404,
     });
@@ -304,8 +304,8 @@ const handleLoadSlideFile = (data) => {
 
   try {
     const resolved = resolveSlidePath(inputPath, data?.workspaceUris);
-    if (!resolved) {
-      return { success: false, error: `File not found: ${inputPath}` };
+    if (!resolved || !isPresentationFile(resolved)) {
+      return { success: false, error: `File not found or not a presentation: ${inputPath}` };
     }
 
     const stat = statSync(resolved);
