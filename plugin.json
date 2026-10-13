@@ -1,0 +1,12 @@
+{
+  "name": "slide-viewer",
+  "displayName": "Presentation Slide Viewer",
+  "version": "1.0.0",
+  "description": "Interactive presentation slide viewer in the side panel for PowerPoint (.pptx) and Markdown (.md, .slides.md) slide decks with presentation mode, thumbnail filmstrip, speaker notes, grid overview, and Antigravity agent integration.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Open the Presentation Slide Viewer in the side panel",
+    "Analyze the open presentation deck",
+    "Find all presentation slides in my workspace"
+  ]
+}

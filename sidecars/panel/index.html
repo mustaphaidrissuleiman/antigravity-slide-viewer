@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Presentation Slide Viewer</title>
+  <link rel="stylesheet" href="/styles.css">
+  <!-- Antigravity Host Bridge: injects theme tokens & window.sidecar -->
+  <script src="/preload.js"></script>
+  <!-- Vendored Libraries -->
+  <script src="/lib/jszip.min.js"></script>
+</head>
+<body>
+  <div id="app" class="app-container">
+    <!-- Hidden File Input for Native File Picker -->
+    <input type="file" id="fileInput" accept=".pptx,.ppt,.potx,.pptm,.md,.markdown,.slide,.slides" hidden>
+
+    <!-- Top Presentation Toolbar (visible when presentation is loaded) -->
+    <header id="toolbar" class="toolbar" hidden>
+      <div class="toolbar-section toolbar-left">
+        <button id="openDeckBtn" class="btn btn-sm btn-subtle" title="Open Presentation Deck">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>Open</span>
+        </button>
+        <span id="deckBadge" class="deck-badge">PPTX</span>
+        <span id="deckTitle" class="deck-title" title="">presentation.pptx</span>
+      </div>
+
+      <div class="toolbar-section toolbar-center">
+        <!-- View Modes -->
+        <div class="view-mode-group">
+          <button id="viewSlideBtn" class="btn btn-sm view-mode-btn active" title="Slide Presentation View">Slide</button>
+          <button id="viewGridBtn" class="btn btn-sm view-mode-btn" title="Grid / Overview View">Grid</button>
+        </div>
+
+        <!-- Slide Navigation Controls -->
+        <div id="slideNavControls" class="slide-nav-controls">
+          <button id="prevSlideBtn" class="btn btn-icon btn-sm" title="Previous Slide (← / PageUp)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <div class="slide-counter-wrap">
+            <input type="number" id="slideIndexInput" class="slide-num-input" value="1" min="1" max="1">
+            <span class="slide-counter-sep">/</span>
+            <span id="totalSlidesCount">1</span>
+          </div>
+          <button id="nextSlideBtn" class="btn btn-icon btn-sm" title="Next Slide (→ / Space / PageDown)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Filmstrip toggle -->
+        <button id="toggleFilmstripBtn" class="btn btn-icon btn-sm active" title="Toggle Slide Filmstrip">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="3" x2="9" y2="21"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div class="toolbar-section toolbar-right">
+        <!-- Presenter Notes Toggle -->
+        <button id="toggleNotesBtn" class="btn btn-sm btn-subtle" title="Toggle Speaker Notes & Timer (N)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <span class="btn-label-mobile">Notes</span>
+        </button>
+
+        <!-- Deck Theme Switcher -->
+        <div class="theme-select-wrap">
+          <select id="deckThemeSelect" class="theme-select" title="Change Slide Presentation Theme">
+            <option value="auto">Theme: Host</option>
+            <option value="dark-modern">Dark Slate</option>
+            <option value="clean-light">Clean Light</option>
+            <option value="executive-navy">Executive Navy</option>
+            <option value="cyberpunk">Cyberpunk</option>
+          </select>
+        </div>
+
+        <!-- Fullscreen Presentation Mode -->
+        <button id="fullscreenBtn" class="btn btn-icon btn-sm" title="Fullscreen Presentation Mode (F)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+          </svg>
+        </button>
+
+        <!-- Ask Agent -->
+        <button id="askAgentBtn" class="btn btn-sm btn-agent" title="Ask Antigravity Agent about this presentation">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
+          </svg>
+          <span>Ask Agent</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Slide Deck Progress Bar -->
+    <div id="deckProgressBar" class="deck-progress-bar" hidden>
+      <div id="deckProgressFill" class="deck-progress-fill" style="width: 0%;"></div>
+    </div>
+
+    <!-- Main Content Area: Left Filmstrip + Center Slide Canvas -->
+    <main id="mainContainer" class="main-container" hidden>
+      <!-- Collapsible Thumbnail Filmstrip -->
+      <aside id="filmstrip" class="filmstrip">
+        <div class="filmstrip-header">
+          <span>SLIDES</span>
+          <span id="filmstripCount" class="filmstrip-count">0</span>
+        </div>
+        <div id="filmstripList" class="filmstrip-list">
+          <!-- Slide thumbnails injected here -->
+        </div>
+      </aside>
+
+      <!-- Center Slide Viewer Area -->
+      <div id="slideViewport" class="slide-viewport">
+        <!-- Floating Navigation Chevrons -->
+        <button id="floatPrevBtn" class="float-nav-btn float-prev" title="Previous Slide">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <button id="floatNextBtn" class="float-nav-btn float-next" title="Next Slide">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+
+        <!-- Slide Stage Container with 16:9 Canvas -->
+        <div id="slideStage" class="slide-stage">
+          <div id="slideCanvas" class="slide-canvas">
+            <!-- Active slide rendered here -->
+          </div>
+        </div>
+
+        <!-- Speaker Notes Drawer (Expandable / Collapsible) -->
+        <div id="notesDrawer" class="notes-drawer" hidden>
+          <div class="notes-header">
+            <div class="notes-header-left">
+              <span class="notes-title">SPEAKER NOTES</span>
+              <!-- Rehearsal Timer -->
+              <div class="timer-widget">
+                <span id="timerDisplay" class="timer-display">00:00</span>
+                <button id="timerToggleBtn" class="btn btn-xs btn-timer" title="Start / Pause Timer">▶</button>
+                <button id="timerResetBtn" class="btn btn-xs btn-timer" title="Reset Timer">↺</button>
+              </div>
+            </div>
+            <div class="notes-header-right">
+              <button id="generateNotesBtn" class="btn btn-xs btn-outline" title="Generate speaker notes with agent">
+                ✨ Generate Notes
+              </button>
+              <button id="closeNotesBtn" class="btn btn-xs btn-icon" title="Close Notes">✕</button>
+            </div>
+          </div>
+          <div id="notesContent" class="notes-content">
+            <p class="notes-empty">No speaker notes recorded for this slide.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grid Overview View (Toggled on Grid mode) -->
+      <div id="gridView" class="grid-view" hidden>
+        <div class="grid-toolbar">
+          <div class="grid-search-wrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="gridSearchInput" placeholder="Search slides in deck..." class="grid-search-input">
+          </div>
+          <span id="gridMatchCount" class="grid-match-count"></span>
+        </div>
+        <div id="gridCards" class="grid-cards">
+          <!-- Slide cards injected here -->
+        </div>
+      </div>
+    </main>
+
+    <!-- Welcome / Empty State Screen (Default before file is loaded) -->
+    <section id="welcomeScreen" class="welcome-screen">
+      <div class="welcome-card">
+        <div class="welcome-icon-wrap">
+          <svg width="44" height="44" viewBox="0 0 64 64" fill="none">
+            <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#welGrad)" />
+            <rect x="11" y="12" width="42" height="28" rx="3" fill="#FFFFFF" />
+            <rect x="15" y="16" width="16" height="3" rx="1.5" fill="#8B5CF6" />
+            <rect x="15" y="22" width="10" height="2" rx="1" fill="#94A3B8" />
+            <rect x="30" y="26" width="4" height="8" rx="1" fill="#C084FC" />
+            <rect x="36" y="22" width="4" height="12" rx="1" fill="#8B5CF6" />
+            <rect x="42" y="18" width="4" height="16" rx="1" fill="#3B82F6" />
+            <path d="M32 40 L32 49" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" />
+            <path d="M22 51 L32 48 L42 51" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+            <defs>
+              <linearGradient id="welGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#D946EF" />
+                <stop offset="50%" stop-color="#8B5CF6" />
+                <stop offset="100%" stop-color="#3B82F6" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+
+        <h1 class="welcome-title">Presentation Slide Viewer</h1>
+        <p class="welcome-desc">
+          Present and inspect PowerPoint (<code>.pptx</code>) and Markdown (<code>.slides.md</code>) decks inside Antigravity 2.0 with speaker notes and live agent co-pilot.
+        </p>
+
+        <!-- Drop Zone & Actions -->
+        <div id="dropZone" class="drop-zone">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <span>Drop presentation file here, or</span>
+          <button id="browseFileBtn" class="btn btn-primary btn-sm">Browse Files</button>
+        </div>
+
+        <!-- Sample Starter Decks -->
+        <div class="sample-decks-section">
+          <div class="section-label">TRY SAMPLE PRESENTATIONS</div>
+          <div id="sampleDeckList" class="sample-deck-grid">
+            <!-- Sample decks injected via JS -->
+          </div>
+        </div>
+
+        <!-- Discovered Workspace Presentations -->
+        <div class="workspace-section">
+          <div class="workspace-section-header">
+            <span class="section-label">WORKSPACE PRESENTATIONS</span>
+            <button id="refreshWorkspaceBtn" class="btn btn-xs btn-subtle" title="Rescan Workspace">↻ Scan</button>
+          </div>
+          <div id="workspaceDeckList" class="workspace-deck-list">
+            <div class="deck-list-loading">Scanning workspace for presentations...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- File Picker Modal -->
+    <div id="fileModal" class="modal-overlay" hidden>
+      <div class="modal-box">
+        <div class="modal-header">
+          <h3>Open Presentation</h3>
+          <button id="closeFileModalBtn" class="btn btn-icon btn-sm">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-file-input-row">
+            <input type="text" id="manualPathInput" class="modal-input" placeholder="Enter file path or paste URL...">
+            <button id="loadManualPathBtn" class="btn btn-primary btn-sm">Load</button>
+          </div>
+          <div class="modal-section-title">Workspace Presentations</div>
+          <div id="modalWorkspaceList" class="modal-file-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent Action Modal -->
+    <div id="agentModal" class="modal-overlay" hidden>
+      <div class="modal-box agent-modal-box">
+        <div class="modal-header">
+          <div class="agent-modal-title">
+            <span class="agent-icon">✨</span>
+            <h3>Ask Antigravity Agent</h3>
+          </div>
+          <button id="closeAgentModalBtn" class="btn btn-icon btn-sm">✕</button>
+        </div>
+        <div class="modal-body">
+          <p class="agent-modal-sub">
+            Collaborate with your agent on the active slide (<strong id="agentSlideLabel">Slide 1</strong>) or the full deck.
+          </p>
+
+          <div class="agent-quick-actions">
+            <button class="agent-action-card" data-action="explain">
+              <span class="card-icon">💡</span>
+              <div class="card-text">
+                <strong>Explain Slide</strong>
+                <span>Summarize concepts, architecture, and takeaways</span>
+              </div>
+            </button>
+            <button class="agent-action-card" data-action="notes">
+              <span class="card-icon">🎙️</span>
+              <div class="card-text">
+                <strong>Generate Speaker Notes</strong>
+                <span>Draft engaging talking points and speaker script</span>
+              </div>
+            </button>
+            <button class="agent-action-card" data-action="critique">
+              <span class="card-icon">🎯</span>
+              <div class="card-text">
+                <strong>Critique & Improve</strong>
+                <span>Analyze visual hierarchy, brevity, and impact</span>
+              </div>
+            </button>
+            <button class="agent-action-card" data-action="next-slide">
+              <span class="card-icon">➕</span>
+              <div class="card-text">
+                <strong>Suggest Next Slide</strong>
+                <span>Recommend follow-up topics and structure</span>
+              </div>
+            </button>
+            <button class="agent-action-card" data-action="summarize-deck">
+              <span class="card-icon">📊</span>
+              <div class="card-text">
+                <strong>Summarize Entire Deck</strong>
+                <span>Executive summary of the whole presentation</span>
+              </div>
+            </button>
+          </div>
+
+          <div class="agent-custom-input-wrap">
+            <label for="agentCustomPrompt">Or ask a custom question:</label>
+            <div class="custom-prompt-row">
+              <textarea id="agentCustomPrompt" rows="2" placeholder="e.g., Turn bullet #2 into an executive metric..."></textarea>
+              <button id="sendCustomPromptBtn" class="btn btn-primary btn-sm">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast" hidden></div>
+  </div>
+
+  <!-- Main Application Script -->
+  <script src="/app.js"></script>
+</body>
+</html>

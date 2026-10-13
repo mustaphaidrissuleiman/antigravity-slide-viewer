@@ -1,0 +1,18 @@
+{
+  "command": "node",
+  "args": ["main.mjs"],
+  "restart_policy": "always",
+  "display_name": "Presentation Slide Viewer",
+  "description": "View PowerPoint and Markdown presentation slide decks directly in the side panel.",
+  "has_web_ui": true,
+  "ui_config": {
+    "display_name": "Presentation Slide Viewer",
+    "views": [
+      {
+        "path": "/",
+        "entrypoint": "SIDECAR_UI_ENTRYPOINT_AUX_PANE",
+        "title": "Presentation Slide Viewer"
+      }
+    ]
+  }
+}
