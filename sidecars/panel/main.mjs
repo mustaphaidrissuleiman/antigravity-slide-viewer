@@ -219,7 +219,7 @@ app.api('/api/get-state', () => {
   }
 }, 'GET');
 
-app.api('/api/save-state', (data) => {
+const handleSaveState = (data) => {
   try {
     mkdirSync(DATA_DIR, { recursive: true });
     const state = {
@@ -233,9 +233,11 @@ app.api('/api/save-state', (data) => {
   } catch (err) {
     return { ok: false, error: err.message };
   }
-});
+};
+app.api('/api/save-state', handleSaveState, 'POST');
+app.api('/api/save-state', handleSaveState, 'GET');
 
-app.api('/api/workspace-slides', (data) => {
+const handleWorkspaceSlides = (data) => {
   const uris = Array.isArray(data?.workspaceUris) ? data.workspaceUris : [];
   const folders = [];
 
@@ -269,7 +271,9 @@ app.api('/api/workspace-slides', (data) => {
   }
   unique.sort((a, b) => b.mtime - a.mtime);
   return { slides: unique };
-});
+};
+app.api('/api/workspace-slides', handleWorkspaceSlides, 'POST');
+app.api('/api/workspace-slides', handleWorkspaceSlides, 'GET');
 
 app.api('/api/raw-slide', (data) => {
   const resolved = resolveSlidePath(data?.path, data?.workspaceUris);
@@ -294,7 +298,7 @@ app.api('/api/raw-slide', (data) => {
   });
 }, 'GET');
 
-app.api('/api/load-slide-file', (data) => {
+const handleLoadSlideFile = (data) => {
   const inputPath = data?.path;
   if (!inputPath) return { success: false, error: 'No path specified' };
 
@@ -345,7 +349,9 @@ app.api('/api/load-slide-file', (data) => {
   } catch (err) {
     return { success: false, error: err.message };
   }
-});
+};
+app.api('/api/load-slide-file', handleLoadSlideFile, 'POST');
+app.api('/api/load-slide-file', handleLoadSlideFile, 'GET');
 
 // Built-in starter decks so users can immediately demo and present
 app.api('/api/sample-decks', () => {

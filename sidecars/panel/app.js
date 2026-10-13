@@ -831,21 +831,52 @@ function updateTimerDisplay() {
 }
 
 // ---------------------------------------------------------------------------
+// Network Helpers
+// ---------------------------------------------------------------------------
+async function apiFetch(endpoint, data = {}, method = 'POST') {
+  if (window.sidecar && typeof window.sidecar.fetch === 'function') {
+    try {
+      const res = await window.sidecar.fetch(endpoint, {
+        method,
+        body: method === 'GET' ? undefined : JSON.stringify(data),
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn('sidecar.fetch error, falling back to window.fetch:', e);
+    }
+  }
+  const queryStr = method === 'GET' && Object.keys(data).length > 0
+    ? '?' + new URLSearchParams(data).toString()
+    : '';
+  const res = await fetch(endpoint + queryStr, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: method === 'GET' ? undefined : JSON.stringify(data),
+  });
+  return await res.json();
+}
+
+async function safeGetWorkspaceUris() {
+  if (!window.sidecar || typeof window.sidecar.getWorkspaceUris !== 'function') {
+    return [];
+  }
+  try {
+    return await Promise.race([
+      window.sidecar.getWorkspaceUris(),
+      new Promise((resolve) => setTimeout(() => resolve([]), 350)),
+    ]);
+  } catch {
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // File Loading (Local, Upload, Workspace)
 // ---------------------------------------------------------------------------
 async function loadSlideFile(filePath) {
   try {
     showToast('Loading presentation...');
-    const res = await (window.sidecar?.fetch ? window.sidecar.fetch('/api/load-slide-file', {
-      method: 'POST',
-      body: JSON.stringify({ path: filePath, workspaceUris: state.workspaceUris }),
-    }) : fetch('/api/load-slide-file', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: filePath }),
-    }));
-
-    const data = await res.json();
+    const data = await apiFetch('/api/load-slide-file', { path: filePath, workspaceUris: state.workspaceUris });
     if (!data.success) {
       throw new Error(data.error || 'Failed to load presentation file');
     }
@@ -896,15 +927,10 @@ async function handleNativeFileInput(file) {
 // Workspace & Sample Decks
 // ---------------------------------------------------------------------------
 async function refreshWorkspaceSlides() {
+  if (!el.workspaceDeckList) return;
   el.workspaceDeckList.innerHTML = '<div class="deck-list-loading">Scanning workspace...</div>';
   try {
-    const fetchFunc = window.sidecar?.fetch ? window.sidecar.fetch.bind(window.sidecar) : fetch;
-    const res = await fetchFunc('/api/workspace-slides', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceUris: state.workspaceUris }),
-    });
-    const data = await res.json();
+    const data = await apiFetch('/api/workspace-slides', { workspaceUris: state.workspaceUris });
     const slides = data.slides || [];
 
     if (slides.length === 0) {
@@ -942,9 +968,9 @@ async function refreshWorkspaceSlides() {
 
 async function loadSampleDecks() {
   try {
-    const res = await fetch('/api/sample-decks');
-    const data = await res.json();
-    state.sampleDecks = data.decks || [];
+    const data = await apiFetch('/api/sample-decks', {}, 'GET');
+    state.sampleDecks = data?.decks || [];
+    if (!el.sampleDeckList) return;
     el.sampleDeckList.innerHTML = '';
 
     state.sampleDecks.forEach(deckItem => {
@@ -1162,43 +1188,41 @@ function setupEventListeners() {
 async function init() {
   setupEventListeners();
 
-  // Load sample presentations
-  loadSampleDecks();
-
-  // Query Sidecar workspace URIs
-  if (window.sidecar?.getWorkspaceUris) {
-    try {
-      state.workspaceUris = await window.sidecar.getWorkspaceUris();
-    } catch {}
-  }
-
-  // Scan workspace for presentations
-  refreshWorkspaceSlides();
-
-  // Listen for workspace folder changes
-  if (window.sidecar?.onWorkspaceChange) {
-    window.sidecar.onWorkspaceChange((uris) => {
-      state.workspaceUris = uris;
-      refreshWorkspaceSlides();
-    });
-  }
-
-  // Check URL query parameters (e.g. sidecar://slide-viewer/panel/?file=...)
+  // 1. Check URL parameters immediately so the requested presentation loads first
   const params = new URLSearchParams(window.location.search);
   const fileParam = params.get('file') || params.get('path');
   if (fileParam) {
     loadSlideFile(fileParam);
-    return;
   }
 
-  // Check persistent state
+  // 2. Load sample starter decks
+  loadSampleDecks();
+
+  // 3. Resolve workspace URIs safely with timeout protection
   try {
-    const res = await (window.sidecar?.fetch ? window.sidecar.fetch('/api/get-state') : fetch('/api/get-state'));
-    const savedState = await res.json();
-    if (savedState?.lastOpenedPath) {
-      loadSlideFile(savedState.lastOpenedPath);
-    }
+    state.workspaceUris = await safeGetWorkspaceUris();
   } catch {}
+
+  // 4. Scan workspace presentations
+  refreshWorkspaceSlides();
+
+  // 5. Listen for workspace folder changes
+  if (window.sidecar?.onWorkspaceChange) {
+    window.sidecar.onWorkspaceChange((uris) => {
+      state.workspaceUris = uris || [];
+      refreshWorkspaceSlides();
+    });
+  }
+
+  // 6. If no file was passed in URL, restore last opened presentation
+  if (!fileParam) {
+    try {
+      const savedState = await apiFetch('/api/get-state', {}, 'GET');
+      if (savedState?.lastOpenedPath) {
+        loadSlideFile(savedState.lastOpenedPath);
+      }
+    } catch {}
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
